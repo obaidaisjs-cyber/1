@@ -47,9 +47,10 @@ jobs:
     - name: Create missing directory and file
       run: |
         cd kernel-source
-        mkdir -p techpack/audio/soc
-        echo '#include <linux/pinctrl/pinctrl.h>' > techpack/audio/soc/pinctrl-utils.h
-        echo '#include <linux/device.h>' >> techpack/audio/soc/pinctrl-utils.h
+        mkdir -p ./techpack/audio/soc
+        echo '#include <linux/pinctrl/pinctrl.h>' > ./techpack/audio/soc/pinctrl-utils.h
+        echo '#include <linux/device.h>' >> ./techpack/audio/soc/pinctrl-utils.h
+        ls -la ./techpack/audio/soc/
 
     - name: Fix deprecated function prototype
       run: |
