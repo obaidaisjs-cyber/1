@@ -1,0 +1,74 @@
+name: Build Official Kernel for Redwood (HyperOS)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Clone Kernel Source (Official Xiaomi)
+      run: |
+        git clone --depth=1 https://github.com/MiCode/Xiaomi_Kernel_OpenSource -b redwood-s-oss kernel-source
+
+    - name: Cache Toolchain
+      id: cache-toolchain
+      uses: actions/cache@v4
+      with:
+        path: |
+          toolchain
+          clang
+        key: ${{ runner.os }}-toolchain
+
+    - name: Setup Toolchain
+      if: steps.cache-toolchain.outputs.cache-hit != 'true'
+      run: |
+        sudo apt update
+        sudo apt install -y git make flex bison bc cpio python-is-python3
+        git clone --depth=1 https://github.com/LineageOS/android_prebuilts_gcc_linux-x86_aarch64_aarch64-linux-android-4.9 toolchain
+        git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 clang
+
+    - name: Merge Config Fragment
+      run: |
+        cd kernel-source
+        export ARCH=arm64
+        export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+        export CROSS_COMPILE=$GITHUB_WORKSPACE/toolchain/bin/aarch64-linux-android-
+        echo "CONFIG_KSU=y" >> arch/arm64/configs/vendor/redwood_GKI.config
+        echo "CONFIG_KPROBES=y" >> arch/arm64/configs/vendor/redwood_GKI.config
+        echo "CONFIG_HAVE_KPROBES=y" >> arch/arm64/configs/vendor/redwood_GKI.config
+        echo "CONFIG_KPROBE_EVENTS=y" >> arch/arm64/configs/vendor/redwood_GKI.config
+        scripts/kconfig/merge_config.sh -m arch/arm64/configs/gki_defconfig arch/arm64/configs/vendor/redwood_GKI.config
+        mv .config arch/arm64/configs/redwood_merged_defconfig
+
+    - name: Create missing directory and file
+      run: |
+        cd kernel-source
+        mkdir -p techpack/audio/soc
+        echo '#include <linux/pinctrl/pinctrl.h>' > techpack/audio/soc/pinctrl-utils.h
+        echo '#include <linux/device.h>' >> techpack/audio/soc/pinctrl-utils.h
+
+    - name: Fix deprecated function prototype
+      run: |
+        cd kernel-source
+        if [ -f techpack/camera/drivers/cam_utils/cam_debug_util.c ]; then
+          sed -i 's/cam_debug_get_settings()/cam_debug_get_settings(void)/g' techpack/camera/drivers/cam_utils/cam_debug_util.c
+        fi
+
+    - name: Build Kernel
+      run: |
+        cd kernel-source
+        export ARCH=arm64
+        export PATH=$GITHUB_WORKSPACE/clang/bin:$PATH
+        export CROSS_COMPILE=$GITHUB_WORKSPACE/toolchain/bin/aarch64-linux-android-
+        make -j$(nproc) CC=clang CLANG_TRIPLE=aarch64-linux-gnu- redwood_merged_defconfig
+        make -j$(nproc) CC=clang CLANG_TRIPLE=aarch64-linux-gnu-
+
+    - name: Upload Boot Image
+      uses: actions/upload-artifact@v4
+      with:
+        name: boot-img
+        path: kernel-source/arch/arm64/boot/Image
