@@ -44,13 +44,10 @@ jobs:
         scripts/kconfig/merge_config.sh -m arch/arm64/configs/gki_defconfig arch/arm64/configs/vendor/redwood_GKI.config
         mv .config arch/arm64/configs/redwood_merged_defconfig
 
-    - name: Create missing directory and file
+    - name: Patch Makefile to ignore missing pinctrl-utils.h
       run: |
         cd kernel-source
-        mkdir -p ./techpack/audio/soc
-        echo '#include <linux/pinctrl/pinctrl.h>' > ./techpack/audio/soc/pinctrl-utils.h
-        echo '#include <linux/device.h>' >> ./techpack/audio/soc/pinctrl-utils.h
-        ls -la ./techpack/audio/soc/
+        find . -name "Makefile" -exec sed -i 's/pinctrl-utils.h//g' {} \;
 
     - name: Fix deprecated function prototype
       run: |
